@@ -3,177 +3,161 @@
 
 //! Utilities for text wrapping.
 
-use std::mem;
+use std::borrow;
 
 use crate::style;
 use crate::Context;
 use crate::Mm;
 
-/// Combines a sequence of styled words into lines with a maximum width.
-///
-/// If a word does not fit into a line, the wrapper tries to split it using the `split` function.
-pub struct Wrapper<'c, 's, I: Iterator<Item = style::StyledStr<'s>>> {
-    iter: I,
+#[derive(Debug)]
+pub struct Fragment<'c, 's> {
     context: &'c Context,
-    width: Mm,
-    x: Mm,
-    buf: Vec<style::StyledCow<'s>>,
+    strings: Vec<style::StyledCow<'s>>,
+    add_whitespace: bool,
+    add_hyphen: bool,
 }
 
-impl<'c, 's, I: Iterator<Item = style::StyledStr<'s>>> Wrapper<'c, 's, I> {
-    /// Creates a new wrapper for the given word sequence and with the given maximum width.
-    pub fn new(iter: I, context: &'c Context, width: Mm) -> Wrapper<'c, 's, I> {
-        Wrapper {
-            iter,
-            context,
-            width,
-            x: Mm(0.0),
-            buf: Vec::new(),
+impl<'c, 's> Fragment<'c, 's> {
+    fn style(&self) -> style::Style {
+        self.strings.last().map(|s| s.style).unwrap_or_default()
+    }
+
+    fn width(&self, c: char) -> usize {
+        get_width(self.style().char_width(&self.context.font_cache, c))
+    }
+}
+
+impl<'c, 's> textwrap::core::Fragment for Fragment<'c, 's> {
+    fn width(&self) -> usize {
+        let width = self
+            .strings
+            .iter()
+            .map(|s| s.width(&self.context.font_cache))
+            .sum();
+        get_width(width)
+    }
+
+    fn whitespace_width(&self) -> usize {
+        if self.add_whitespace {
+            self.width(' ')
+        } else {
+            0
+        }
+    }
+
+    fn penalty_width(&self) -> usize {
+        if self.add_hyphen {
+            self.width('-')
+        } else {
+            0
         }
     }
 }
 
-impl<'c, 's, I: Iterator<Item = style::StyledStr<'s>>> Iterator for Wrapper<'c, 's, I> {
-    // This iterator yields pairs of lines and the length difference between the input words and
-    // the line.
-    type Item = (Vec<style::StyledCow<'s>>, usize);
+fn get_width(width: Mm) -> usize {
+    (width.0 * 1000.0) as usize
+}
 
-    fn next(&mut self) -> Option<(Vec<style::StyledCow<'s>>, usize)> {
-        // Append words to self.buf until the maximum line length is reached
-        while let Some(s) = self.iter.next() {
-            let mut width = s.width(&self.context.font_cache);
+pub fn prepare<'c, 's>(
+    context: &'c Context,
+    strings: &'s [style::StyledString],
+) -> Vec<Fragment<'c, 's>> {
+    // TODO: Calculate segments over string boundaries?
 
-            if self.x + width > self.width {
-                // The word does not fit into the current line (at least not completely)
+    let mut fragments = Vec::new();
+    for s in strings {
+        let words: Vec<_> = s.s.split(' ').collect();
+        for (idx, word) in words.iter().enumerate() {
+            let is_last_word = idx + 1 == words.len();
+            let segments = split(context, word);
 
-                let mut delta = 0;
-                // Try to split the word so that the first part fits into the current line
-                let s = if let Some((start, end)) = split(self.context, s, self.width - self.x) {
-                    // Calculate the number of bytes that we added to the string when splitting it
-                    // (for the hyphen, if required).
-                    delta = start.s.len() + end.s.len() - s.s.len();
-                    self.buf.push(start);
-                    width = end.width(&self.context.font_cache);
-                    end
-                } else {
-                    s.into()
-                };
+            for (idx, segment) in segments.iter().enumerate() {
+                let is_last_segment = idx + 1 == segments.len();
+                let s = style::StyledCow::new(*segment, s.style);
 
-                if width > self.width {
-                    // The remainder of the word is longer than the current page – we will never be
-                    // able to render it completely.
-                    // TODO: return error?
-                    break;
-                }
-
-                // Return the current line and add the word that did not fit to the next line
-                let v = std::mem::take(&mut self.buf);
-                self.buf.push(s);
-                self.x = width;
-                return Some((v, delta));
-            } else {
-                // The word fits in the current line, so just append it
-                self.buf.push(s.into());
-                self.x += width;
+                fragments.push(Fragment {
+                    context,
+                    strings: vec![s],
+                    add_whitespace: !is_last_word && is_last_segment,
+                    add_hyphen: !is_last_segment,
+                });
             }
         }
-
-        if self.buf.is_empty() {
-            None
-        } else {
-            Some((mem::take(&mut self.buf), 0))
-        }
     }
+
+    // Merge strings that are not separated by whitespaces or hyphens
+    fragments.into_iter().fold(Vec::new(), |mut vec, fragment| {
+        if let Some(last) = vec.last_mut() {
+            if !last.add_whitespace && !last.add_hyphen {
+                last.strings.extend(fragment.strings);
+                last.add_whitespace = fragment.add_whitespace;
+                last.add_hyphen = fragment.add_hyphen;
+            } else {
+                vec.push(fragment);
+            }
+        } else {
+            vec.push(fragment);
+        }
+        vec
+    })
 }
 
 #[cfg(not(feature = "hyphenation"))]
-fn split<'s>(
-    _context: &Context,
-    _s: style::StyledStr<'s>,
-    _len: Mm,
-) -> Option<(style::StyledCow<'s>, style::StyledCow<'s>)> {
-    None
+fn split<'s>(_context: &'_ Context, s: &'s str) -> Vec<&'s str> {
+    vec![s]
 }
 
-/// Tries to split the given string into two parts so that the first part is shorter than the given
-/// width.
 #[cfg(feature = "hyphenation")]
-fn split<'s>(
-    context: &Context,
-    s: style::StyledStr<'s>,
-    width: Mm,
-) -> Option<(style::StyledCow<'s>, style::StyledCow<'s>)> {
-    use hyphenation::{Hyphenator, Iter};
+fn split<'s>(context: &'_ Context, s: &'s str) -> Vec<&'s str> {
+    use hyphenation::Hyphenator;
 
     let hyphenator = if let Some(hyphenator) = &context.hyphenator {
         hyphenator
     } else {
-        return None;
+        return vec![s];
     };
 
-    let mark = "-";
-    let mark_width = s.style.str_width(&context.font_cache, mark);
-
-    let hyphenated = hyphenator.hyphenate(s.s);
-    let segments: Vec<_> = hyphenated.iter().segments().collect();
-
-    // Find the hyphenation with the longest first part so that the first part (and the hyphen) are
-    // shorter than or equals to the required width.
-    let idx = segments
-        .iter()
-        .scan(Mm(0.0), |acc, t| {
-            *acc += s.style.str_width(&context.font_cache, t);
-            Some(*acc)
-        })
-        .position(|w| w + mark_width > width)
-        .unwrap_or_default();
-    if idx > 0 {
-        let idx = hyphenated.breaks[idx - 1];
-        let start = s.s[..idx].to_owned() + mark;
-        let end = &s.s[idx..];
-        Some((
-            style::StyledCow::new(start, s.style),
-            style::StyledCow::new(end, s.style),
-        ))
-    } else {
-        None
-    }
+    hyphenator.hyphenate(s).into_iter().segments().collect()
 }
 
-/// Splits a sequence of styled strings into words.
-pub struct Words<I: Iterator<Item = style::StyledString>> {
-    iter: I,
-    s: Option<style::StyledString>,
+pub fn wrap<'f, 'c, 's>(
+    fragments: &'f [Fragment<'c, 's>],
+    width: Mm,
+) -> Vec<&'f [Fragment<'c, 's>]> {
+    let width = get_width(width);
+    textwrap::core::wrap_fragments(fragments, |_| width)
 }
 
-impl<I: Iterator<Item = style::StyledString>> Words<I> {
-    /// Creates a new words iterator.
-    pub fn new<IntoIter: IntoIterator<Item = style::StyledString, IntoIter = I>>(
-        iter: IntoIter,
-    ) -> Words<I> {
-        Words {
-            iter: iter.into_iter(),
-            s: None,
-        }
-    }
-}
-
-impl<I: Iterator<Item = style::StyledString>> Iterator for Words<I> {
-    type Item = style::StyledString;
-
-    fn next(&mut self) -> Option<style::StyledString> {
-        if self.s.as_ref().map(|s| s.s.is_empty()).unwrap_or(true) {
-            self.s = self.iter.next();
+pub fn finalize<'s>(line: &[Fragment<'_, 's>]) -> Vec<style::StyledCow<'s>> {
+    let mut strings = Vec::new();
+    for (idx, fragment) in line.iter().enumerate() {
+        for s in &fragment.strings {
+            strings.push(s.clone());
         }
 
-        if let Some(s) = &mut self.s {
-            // Split at the first space or use the complete string
-            let n = s.s.find(' ').map(|i| i + 1).unwrap_or_else(|| s.s.len());
-            let mut tmp = s.s.split_off(n);
-            mem::swap(&mut tmp, &mut s.s);
-            Some(style::StyledString::new(tmp, s.style))
+        let suffix = if idx + 1 == line.len() {
+            if fragment.add_hyphen {
+                Some('-')
+            } else {
+                None
+            }
+        } else if fragment.add_whitespace {
+            Some(' ')
         } else {
             None
+        };
+
+        if let Some(suffix) = suffix {
+            let mut last = strings.last_mut().unwrap();
+            match &mut last.s {
+                borrow::Cow::Borrowed(b) => {
+                    let mut s = b.to_string();
+                    s.push(suffix);
+                    last.s = s.into();
+                }
+                borrow::Cow::Owned(o) => o.push(suffix),
+            }
         }
     }
+    strings
 }

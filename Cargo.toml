@@ -28,6 +28,10 @@ optional = true
 version = "0.3.3"
 default-features = false
 
+[dependencies.textwrap]
+git = "https://github.com/mgeisler/textwrap"
+rev = "baf226437159c6a95239ef778f34535be54c9a43"
+
 [dependencies.derive_more]
 version = "0.99"
 default-features = false
