@@ -50,7 +50,7 @@ SPDX-License-Identifier: CC0-1.0
 - Add support for kerning and add the `Font::kerning` and `Font::glyph_ids`
   methods.
 - Add the `error::Context` trait for easier error generation.
-- Adds support for `Image` as a possible insertable element.
+- Add support for `Image` as a possible insertable element.
 
 ## Bug Fixes
 

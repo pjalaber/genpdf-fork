@@ -20,6 +20,7 @@
 //!   - [`PaddedElement`][]: adds a padding to the wrapped element
 //!   - [`StyledElement`][]: sets a default style for the wrapped element and its children
 //! - Other:
+//!   - [`Image`][]: an image (requires the `images` feature)
 //!   - [`Break`][]: adds forced line breaks as a spacer
 //!   - [`PageBreak`][]: adds a forced page break
 //!
@@ -31,12 +32,16 @@
 //! [`OrderedList`]: struct.OrderedList.html
 //! [`UnorderedList`]: struct.UnorderedList.html
 //! [`Text`]: struct.Text.html
+//! [`Image`]: struct.Image.html
 //! [`Break`]: struct.Break.html
 //! [`PageBreak`]: struct.PageBreak.html
 //! [`Paragraph`]: struct.Paragraph.html
 //! [`FramedElement`]: struct.FramedElement.html
 //! [`PaddedElement`]: struct.PaddedElement.html
 //! [`StyledElement`]: struct.StyledElement.html
+
+#[cfg(feature = "images")]
+mod images;
 
 use std::collections;
 use std::iter;
@@ -48,11 +53,8 @@ use crate::style::{Style, StyledString};
 use crate::wrap;
 use crate::{Alignment, Context, Element, Margins, Mm, Position, RenderResult, Size};
 
-// Import images and re-export from elements.
 #[cfg(feature = "images")]
-mod images;
-#[cfg(feature = "images")]
-pub use images::*;
+pub use images::Image;
 
 /// Arranges a list of elements sequentially.
 ///
@@ -208,7 +210,7 @@ impl Element for Text {
 /// p.push("This is an ");
 /// p.push_styled("important", style::Color::Rgb(255, 0, 0));
 /// p.push(" message!");
-/// p.set_alignment(elements::Alignment::Center);
+/// p.set_alignment(genpdf::Alignment::Center);
 /// ```
 ///
 /// Chained:
@@ -218,11 +220,11 @@ impl Element for Text {
 ///     .string("This is an ")
 ///     .styled_string("important", style::Color::Rgb(255, 0, 0))
 ///     .string(" message!")
-///     .aligned(elements::Alignment::Center);
+///     .aligned(genpdf::Alignment::Center);
 /// ```
 ///
 /// [`Style`]: ../style/struct.Style.html
-/// [`Alignment`]: enum.Alignment.html
+/// [`Alignment`]: ../enum.Alignment.html
 /// [`push`]: #method.push
 /// [`push_styled`]: #method.push_styled
 /// [`string`]: #method.string

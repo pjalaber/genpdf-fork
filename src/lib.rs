@@ -280,8 +280,8 @@ impl From<Mm> for printpdf::Pt {
 ///
 /// The default alignment is left-flushed.
 ///
-/// [`Paragraph`]: struct.Paragraph.html
-/// [`Image`]: struct.Image.html
+/// [`Paragraph`]: elements/struct.Paragraph.html
+/// [`Image`]: elements/struct.Image.html
 #[derive(Clone, Copy, Debug, Eq, Hash, Ord, PartialEq, PartialOrd)]
 pub enum Alignment {
     /// Left-flushed.
@@ -338,14 +338,27 @@ pub struct Rotation {
 }
 
 impl Rotation {
-    /// Create a new rotation with the given number of degrees.
-    pub fn from_degrees(rotation: f64) -> Self {
-        let degrees: f64 = match rotation % 360.0 {
-            deg if deg > 180.0 => 360.0 - deg,
-            deg if deg < -180.0 => 360.0 + deg,
-            deg => deg,
+    /// Creates a new rotation with the given number of degrees.
+    pub fn from_degrees(degrees: f64) -> Self {
+        let degrees = degrees % 360.0;
+        let degrees = if degrees > 180.0 {
+            degrees - 360.0
+        } else if degrees < -180.0 {
+            360.0 + degrees
+        } else {
+            degrees
         };
         Rotation { degrees }
+    }
+
+    /// Returns the rotation in degrees clock-wise in the range [-180.0, 180.0] inclusive or `None`
+    /// if there is no rotation.
+    pub fn degrees(&self) -> Option<f64> {
+        if self.degrees != 0.0 {
+            Some(self.degrees)
+        } else {
+            None
+        }
     }
 }
 
@@ -358,11 +371,7 @@ impl From<f64> for Rotation {
 
 impl From<Rotation> for Option<f64> {
     fn from(rotation: Rotation) -> Option<f64> {
-        if rotation.degrees != 0.0 {
-            Some(rotation.degrees)
-        } else {
-            None
-        }
+        rotation.degrees()
     }
 }
 
@@ -378,7 +387,7 @@ pub struct Scale {
 // Overriding default of (0,0) as that would scale it to 0.
 impl Default for Scale {
     fn default() -> Scale {
-        Scale::new(1,1)
+        Scale::new(1, 1)
     }
 }
 
@@ -952,5 +961,29 @@ impl Context {
             font_cache,
             hyphenator: None,
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    #[test]
+    fn test_rotation() {
+        use super::Rotation;
+
+        assert_eq!(None, Rotation::from(0.0).degrees());
+
+        assert_eq!(Some(90.0), Rotation::from(90.0).degrees());
+        assert_eq!(Some(180.0), Rotation::from(180.0).degrees());
+        assert_eq!(Some(-90.0), Rotation::from(270.0).degrees());
+        assert_eq!(None, Rotation::from(360.0).degrees());
+        assert_eq!(Some(90.0), Rotation::from(450.0).degrees());
+        assert_eq!(Some(180.0), Rotation::from(540.0).degrees());
+
+        assert_eq!(Some(-90.0), Rotation::from(-90.0).degrees());
+        assert_eq!(Some(-180.0), Rotation::from(-180.0).degrees());
+        assert_eq!(Some(90.0), Rotation::from(-270.0).degrees());
+        assert_eq!(None, Rotation::from(-360.0).degrees());
+        assert_eq!(Some(-90.0), Rotation::from(-450.0).degrees());
+        assert_eq!(Some(-180.0), Rotation::from(-540.0).degrees());
     }
 }

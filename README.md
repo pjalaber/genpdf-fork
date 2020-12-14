@@ -59,10 +59,11 @@ For more information, see the [API documentation](https://docs.rs/genpdf).
 
 This crate has the following Cargo features (deactivated per default):
 
-- `images`: Adds support for embedding images.
+- `images`: Adds support for embedding images using the [`image`][] crate.
 - `hyphenation`:  Adds support for hyphenation using the [`hyphenation`][] crate.
 
 [`hyphenation`]: https://lib.rs/crates/hyphenation
+[`image`]: https://lib.rs/crates/image
 
 ## Roadmap
 

@@ -25,7 +25,7 @@ use crate::fonts;
 use crate::style::{Color, Style};
 use crate::{Margins, Mm, Position, Size};
 
-#[cfg(feature = "images",)]
+#[cfg(feature = "images")]
 use crate::{Rotation, Scale};
 
 /// Renders a PDF document with one or more pages.
@@ -302,18 +302,22 @@ impl<'a> Area<'a> {
 
     /// Inserts an image into the document.
     ///
+    /// *Only available if the `images` feature is enabled.*
+    ///
     /// The position is assumed to be relative to the upper left hand corner of the area.
-    /// Your position will need to compensate for rotation/scale/dpi. Using the Image's
-    /// render functionality will will do this for you and is the recommended way to
+    /// Your position will need to compensate for rotation/scale/dpi. Using [`Image`][]’s
+    /// render functionality will do this for you and is the recommended way to
     /// insert an image into an Area.
-    #[cfg(feature = "images",)]
+    ///
+    /// [`Image`]: ../elements/struct.Image.html
+    #[cfg(feature = "images")]
     pub fn add_image(
         &self,
         image: &image::DynamicImage,
         position: Position,
         scale: Scale,
         rotation: Rotation,
-        dpi: Option<f64>
+        dpi: Option<f64>,
     ) {
         let dynamic_image = printpdf::Image::from_dynamic_image(image);
         let real_position = self.transform_position(position);

@@ -85,8 +85,7 @@ impl error::Error for Error {
             ErrorKind::PdfError(err) => Some(err),
             ErrorKind::PdfIndexError(err) => Some(err),
             ErrorKind::RusttypeError(err) => Some(err),
-
-            #[cfg(feature = "images",)]
+            #[cfg(feature = "images")]
             ErrorKind::ImageError(err) => Some(err),
         }
     }
@@ -114,9 +113,10 @@ pub enum ErrorKind {
     PdfIndexError(printpdf::IndexError),
     /// An error caused by `rusttype`.
     RusttypeError(rusttype::Error),
-
-    /// An error caused by an image.
-    #[cfg(feature = "images",)]
+    /// An error caused by `image`.
+    ///
+    /// *Only available if the `images` feature is enabled.*
+    #[cfg(feature = "images")]
     ImageError(image::ImageError),
 }
 
@@ -155,7 +155,7 @@ impl From<rusttype::Error> for ErrorKind {
     }
 }
 
-#[cfg(feature = "images",)]
+#[cfg(feature = "images")]
 impl From<image::ImageError> for ErrorKind {
     fn from(error: image::ImageError) -> ErrorKind {
         ErrorKind::ImageError(error)
