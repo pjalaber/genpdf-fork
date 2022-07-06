@@ -164,6 +164,11 @@ impl Page {
         }
     }
 
+    /// Returns the size of the page.
+    pub fn size(&self) -> Size {
+        self.size
+    }
+
     /// Adds a new layer with the given name to the page.
     pub fn add_layer(&mut self, name: impl Into<String>) {
         let layer = self.page.add_layer(name);
@@ -206,6 +211,11 @@ impl Layer {
         Layer { layer, size }
     }
 
+    /// Returns the size of the underlying page.
+    pub fn size(&self) -> Size {
+        self.size
+    }
+
     /// Returns a drawable area for this layer.
     pub fn area(&self) -> Area<'_> {
         Area::new(self, Position::default(), self.size)
@@ -241,6 +251,11 @@ impl<'a> Area<'a> {
         }
     }
 
+    /// Returns the origin of this area.
+    pub fn origin(&self) -> Position {
+        self.origin
+    }
+
     /// Reduces the size of the drawable area by the given margins.
     pub fn add_margins(&mut self, margins: impl Into<Margins>) {
         let margins = margins.into();
@@ -253,6 +268,11 @@ impl<'a> Area<'a> {
     /// Returns the size of this area.
     pub fn size(&self) -> Size {
         self.size
+    }
+
+    /// Returns the size of the layer's page
+    pub fn layer_size(&self) -> Size {
+        self.layer.size()
     }
 
     /// Adds the given offset to the area, reducing the drawable area.

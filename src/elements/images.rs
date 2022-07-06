@@ -62,6 +62,11 @@ pub struct Image {
 }
 
 impl Image {
+    ///  Returns the size of the image.
+    pub fn size(&self) -> Size {
+        Size::new(self.data.width(), self.data.height())
+    }
+
     /// Creates a new image from an already loaded image.
     pub fn from_dynamic_image(data: image::DynamicImage) -> Self {
         Image {
@@ -212,13 +217,12 @@ impl Element for Image {
         // (0,0) when it was rotated in any way.
         position += bb_origin;
 
-        // Insert/render the image with the overridden/calculated position.
-        area.add_image(&self.data, position, self.scale, self.rotation, self.dpi);
+        result.has_more = area.origin().y + position.y > area.layer_size().height;
 
-        // Always false as we can't safely do this unless we want to try to do "sub-images".
-        // This is technically possible with the `image` package, but it is potentially more
-        // work than necessary. I'd rather support an "Auto-Scale" method to fit to area.
-        result.has_more = false;
+        if !result.has_more {
+            // Insert/render the image with the overridden/calculated position.
+            area.add_image(&self.data, position, self.scale, self.rotation, self.dpi);
+        }
 
         Ok(result)
     }

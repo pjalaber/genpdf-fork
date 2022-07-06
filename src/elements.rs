@@ -235,6 +235,7 @@ pub struct Paragraph {
     words: collections::VecDeque<StyledString>,
     style_applied: bool,
     alignment: Alignment,
+    render_one_page: bool,
 }
 
 impl Paragraph {
@@ -244,6 +245,11 @@ impl Paragraph {
             text: vec![text.into()],
             ..Default::default()
         }
+    }
+
+    /// Sets whether this paragraph must be rendered on one page
+    pub fn set_render_one_page(&mut self, render_one_page: bool) {
+        self.render_one_page = render_one_page;
     }
 
     /// Sets the alignment of this paragraph.
@@ -295,14 +301,13 @@ impl Paragraph {
             self.style_applied = true;
         }
     }
-}
 
-impl Element for Paragraph {
-    fn render(
+    fn render_impl(
         &mut self,
         context: &Context,
         mut area: render::Area<'_>,
         style: Style,
+        render: bool,
     ) -> Result<RenderResult, Error> {
         let mut result = RenderResult::default();
 
@@ -324,7 +329,9 @@ impl Element for Paragraph {
             // TODO: calculate the maximum line height
             if let Some(mut section) = area.text_section(&context.font_cache, position, style) {
                 for s in line {
-                    section.print_str(&s.s, s.style)?;
+                    if render {
+                        section.print_str(&s.s, s.style)?;
+                    }
                     rendered_len += s.s.len();
                 }
                 rendered_len -= delta;
@@ -334,6 +341,10 @@ impl Element for Paragraph {
             }
             result.size = result.size.stack_vertical(Size::new(width, height));
             area.add_offset(Position::new(0, height));
+        }
+
+        if !render {
+            rendered_len = 0;
         }
 
         // Remove the rendered data from self.words so that we don’t render it again on the next
@@ -349,6 +360,25 @@ impl Element for Paragraph {
         }
 
         Ok(result)
+    }
+}
+
+impl Element for Paragraph {
+    fn render(
+        &mut self,
+        context: &Context,
+        area: render::Area<'_>,
+        style: Style,
+    ) -> Result<RenderResult, Error> {
+        if self.render_one_page {
+            let result = self.render_impl(context, area.clone(), style, false);
+            if let Ok(r) = result {
+                if r.has_more {
+                    return result;
+                }
+            }
+        }
+        self.render_impl(context, area, style, true)
     }
 }
 
