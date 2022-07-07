@@ -153,6 +153,9 @@
 
 #![warn(missing_docs, rust_2018_idioms)]
 
+#[cfg(feature = "images")]
+pub use image;
+
 mod wrap;
 
 pub mod elements;
